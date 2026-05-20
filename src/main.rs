@@ -10,7 +10,8 @@ fn main() {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
                 let response = [];
-
+                let filled_buf = &mut buf[..size];
+                println!("{:?}", filled_buf);
                 udp_socket
                     .send_to(&response, source)
                     .inspect(|f| println!("passed {}", f))
