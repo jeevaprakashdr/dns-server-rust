@@ -15,12 +15,10 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
-                let response = DNSMessage {
-                    header: DNSHeader::new(1234),
-                };
+                let response = [];
 
                 udp_socket
-                    .send_to(&response.as_bytes(), source)
+                    .send_to(&response, source)
                     .inspect(|f| println!("passed {}", f))
                     .expect("Failed to send response");
             }

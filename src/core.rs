@@ -1,13 +1,7 @@
-use zerocopy::{Immutable, IntoBytes};
-
-#[derive(IntoBytes, Immutable)]
-#[repr(C)]
 pub(crate) struct DNSMessage {
     pub header: DNSHeader,
 }
 
-#[derive(IntoBytes, Immutable)]
-#[repr(C)]
 pub(crate) struct DNSHeader {
     pub id: u16,
 
@@ -30,7 +24,7 @@ impl DNSHeader {
     pub(crate) fn new(id: u16) -> Self {
         Self {
             id,
-            response: true,
+            response: false,
             opcode: 0,
             authoritative_answer: false,
             truncation: false,
