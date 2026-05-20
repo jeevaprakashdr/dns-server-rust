@@ -2,8 +2,6 @@
 use std::net::UdpSocket;
 
 fn main() {
-    println!("Logs from your program will appear here!");
-
     let udp_socket = UdpSocket::bind("127.0.0.1:2053").expect("Failed to bind to address");
     let mut buf = [0; 512];
     
