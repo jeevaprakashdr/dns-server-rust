@@ -1,12 +1,6 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
-use zerocopy::IntoBytes;
-
-use crate::core::{DNSHeader, DNSMessage};
-
-mod core;
-
 fn main() {
     let udp_socket = UdpSocket::bind("127.0.0.1:2053").expect("Failed to bind to address");
     let mut buf = [0; 512];
