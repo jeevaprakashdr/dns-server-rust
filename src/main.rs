@@ -1,6 +1,8 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
+mod core;
+
 fn main() {
     let udp_socket = UdpSocket::bind("127.0.0.1:2053").expect("Failed to bind to address");
     let mut buf = [0; 512];
@@ -10,8 +12,6 @@ fn main() {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
                 let response = [];
-                let filled_buf = &mut buf[..size];
-                println!("{:?}", filled_buf);
                 udp_socket
                     .send_to(&response, source)
                     .inspect(|f| println!("passed {}", f))
