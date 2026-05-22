@@ -1,7 +1,7 @@
 #[derive(Default)]
 pub(crate) struct Message {
     inner: [u8; 12],
-    pub(crate) header: DNSHeader,
+    pub(crate) header: Header,
 }
 
 impl Message {
@@ -16,11 +16,11 @@ impl Message {
 }
 
 #[derive(Default)]
-pub(crate) struct DNSHeader {
+pub(crate) struct Header {
     inner: [u8; 4],
 }
 
-impl DNSHeader {
+impl Header {
     pub(crate) fn new() -> Self {
         Self::default()
     }
