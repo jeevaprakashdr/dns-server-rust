@@ -1,6 +1,6 @@
 #[derive(Default)]
 pub(crate) struct DNSHeader {
-    inner: [u8; 4],
+    inner: [u8; 12],
 }
 
 impl DNSHeader {
@@ -8,11 +8,19 @@ impl DNSHeader {
         Self::default()
     }
 
-    pub fn set_id(&mut self, id: u16) {
+    pub(crate) fn set_id(&mut self, id: u16) {
         self.inner[..2].copy_from_slice(&id.to_be_bytes())
     }
 
     pub(crate) fn as_slice(&self) -> &[u8] {
         self.inner.as_slice()
+    }
+
+    pub(crate) fn set_qr(&mut self, qr: bool) {
+        if qr {
+            self.inner[2] |= 1 << 7
+        } else {
+            self.inner[2] &= !(1 << 7)
+        }
     }
 }

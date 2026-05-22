@@ -15,6 +15,10 @@ fn main() {
                 println!("Received {} bytes from {}", size, source);
                 let mut header = DNSHeader::new();
                 header.set_id(u16::try_from(1234).unwrap());
+                header.set_qr(true);
+
+                println!("{:?}", &header.as_slice());
+
                 udp_socket
                     .send_to(&header.as_slice(), source)
                     .inspect(|f| println!("passed {}", f))
