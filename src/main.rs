@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
-use crate::core::{DNSHeader, Message};
+use crate::core::Message;
 
 mod core;
 
