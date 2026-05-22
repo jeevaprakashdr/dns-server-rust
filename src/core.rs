@@ -1,6 +1,23 @@
 #[derive(Default)]
-pub(crate) struct DNSHeader {
+pub(crate) struct Message {
     inner: [u8; 12],
+    pub(crate) header: DNSHeader,
+}
+
+impl Message {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn as_slice(&mut self) -> &[u8] {
+        self.inner[..4].copy_from_slice(&self.header.inner);
+        self.inner.as_slice()
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct DNSHeader {
+    inner: [u8; 4],
 }
 
 impl DNSHeader {
@@ -10,10 +27,6 @@ impl DNSHeader {
 
     pub(crate) fn set_id(&mut self, id: u16) {
         self.inner[..2].copy_from_slice(&id.to_be_bytes())
-    }
-
-    pub(crate) fn as_slice(&self) -> &[u8] {
-        self.inner.as_slice()
     }
 
     pub(crate) fn set_qr(&mut self, qr: bool) {

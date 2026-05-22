@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
-use crate::core::DNSHeader;
+use crate::core::{DNSHeader, Message};
 
 mod core;
 
@@ -13,14 +13,14 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
-                let mut header = DNSHeader::new();
-                header.set_id(u16::try_from(1234).unwrap());
-                header.set_qr(true);
+                let mut message = Message::new();
+                message.header.set_id(u16::try_from(1234).unwrap());
+                message.header.set_qr(true);
 
-                println!("{:?}", &header.as_slice());
+                println!("{:?}", &message.as_slice());
 
                 udp_socket
-                    .send_to(&header.as_slice(), source)
+                    .send_to(&message.as_slice(), source)
                     .inspect(|f| println!("passed {}", f))
                     .expect("Failed to send response");
             }
