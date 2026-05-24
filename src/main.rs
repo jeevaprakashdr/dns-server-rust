@@ -16,12 +16,13 @@ fn main() {
                 let mut message = Message::new();
                 message.header.set_id(u16::try_from(1234).unwrap());
                 message.header.set_qr(true);
-                message.set_question("codecrafter.com", QType::A, QClass::IN);
+                message.set_question("codecrafters.io".to_string(), QType::A, QClass::IN);
 
-                println!("{:?}", &message.to_vec());
+                let message = message.to_vec();
+                println!("{:?}", message);
 
                 udp_socket
-                    .send_to(&message.to_vec(), source)
+                    .send_to(&message, source)
                     .inspect(|f| println!("passed {}", f))
                     .expect("Failed to send response");
             }
