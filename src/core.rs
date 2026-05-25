@@ -38,18 +38,18 @@ impl Message {
         self.answer.qclass = qclass;
         let mut rng = rand::rng();
         self.answer.ttl = rng.random::<u32>();
-        
+
         self.answer.rdata = match qtype {
             QType::A => {
                 let localhost = Ipv4Addr::new(127, 0, 0, 1);
                 localhost.to_bits()
-            },
+            }
         };
-        
+
         self.answer.rdlength = match qtype {
             QType::A => 4,
         };
-        
+
         self.header.set_answer()
     }
 }
@@ -151,16 +151,20 @@ pub(crate) struct Header {
 }
 
 impl Header {
-    pub(crate) fn set_id(&mut self, id: u16) {
-        self.inner[..2].copy_from_slice(&id.to_be_bytes())
+    pub(crate) fn set_id(&mut self, id: &[u8]) {
+        self.inner[..2].copy_from_slice(&id)
     }
 
-    pub(crate) fn set_qr(&mut self, qr: bool) {
-        if qr {
-            self.inner[2] |= 1 << 7
-        } else {
-            self.inner[2] &= !(1 << 7)
-        }
+    pub(crate) fn set_qr(&mut self) {
+        self.inner[2] |= 0x80
+    }
+
+    pub(crate) fn set_rcode(&mut self) {
+        self.inner[3] |= 0x04
+    }
+
+    pub(crate) fn set_opcode(&mut self, opcode: &u8) {
+        self.inner[2] = *opcode;
     }
 
     fn set_question(&mut self) {

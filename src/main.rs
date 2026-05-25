@@ -13,12 +13,16 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
+
+                let id = &buf[..2].to_vec();
                 let mut message = Message::new();
-                message.header.set_id(u16::try_from(1234).unwrap());
-                message.header.set_qr(true);
+                message.header.set_id(id);
+                message.header.set_opcode(&buf[2]);
+                message.header.set_qr();
+                message.header.set_rcode();
                 message.set_question("codecrafters.io".to_string(), QType::A, QClass::IN);
                 message.set_answer("codecrafters.io".to_string(), QType::A, QClass::IN);
-
+                
                 let message = message.to_vec();
                 println!("{:?}", message);
 
