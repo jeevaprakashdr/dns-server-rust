@@ -164,7 +164,7 @@ impl Header {
     }
 
     pub(crate) fn set_opcode(&mut self, opcode: &u8) {
-        self.inner[2] = *opcode;
+        self.inner[2] |= *opcode;
     }
 
     fn set_question(&mut self) {

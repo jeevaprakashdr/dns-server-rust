@@ -18,8 +18,8 @@ fn main() {
                 let mut message = Message::new();
                 message.header.set_id(id);
                 message.header.set_qr();
-                message.header.set_rcode();
                 message.header.set_opcode(&buf[2]);
+                message.header.set_rcode();
                 message.set_question("codecrafters.io".to_string(), QType::A, QClass::IN);
                 message.set_answer("codecrafters.io".to_string(), QType::A, QClass::IN);
 
