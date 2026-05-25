@@ -17,6 +17,7 @@ fn main() {
                 message.header.set_id(u16::try_from(1234).unwrap());
                 message.header.set_qr(true);
                 message.set_question("codecrafters.io".to_string(), QType::A, QClass::IN);
+                message.set_answer();
 
                 let message = message.to_vec();
                 println!("{:?}", message);

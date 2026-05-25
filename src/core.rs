@@ -1,6 +1,7 @@
 pub(crate) struct Message {
     pub(crate) header: Header,
     question: Question,
+    answer: Answer,
 }
 
 impl Message {
@@ -8,6 +9,7 @@ impl Message {
         Self {
             header: Header::default(),
             question: Question::default(),
+            answer: Answer::default(),
         }
     }
 
@@ -15,6 +17,7 @@ impl Message {
         let mut data = Vec::new();
         data.extend_from_slice(&self.header.inner);
         data.extend_from_slice(&self.question.to_vec());
+        data.extend_from_slice(&self.answer.to_vec());
         data
     }
 
@@ -23,6 +26,11 @@ impl Message {
         self.question.qtype = qtype;
         self.question.qclass = qclass;
         self.header.set_question();
+        self.header.set_answer();
+    }
+
+    pub(crate) fn set_answer(&mut self) {
+        self.header.set_answer();
     }
 }
 
@@ -55,6 +63,19 @@ impl Question {
         encoded_bytes.push(0 as u8);
 
         encoded_bytes
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Answer {
+    name: String,
+    qtype: QType,
+    qclass: QClass,
+}
+
+impl Answer {
+    fn to_vec(&self) -> Vec<u8> {
+        Vec::new()
     }
 }
 
@@ -115,5 +136,10 @@ impl Header {
     fn set_question(&mut self) {
         let count: u16 = 1;
         self.inner[4..6].copy_from_slice(&count.to_be_bytes())
+    }
+
+    fn set_answer(&mut self) {
+        let count: u16 = 1;
+        self.inner[6..8].copy_from_slice(&count.to_be_bytes())
     }
 }
