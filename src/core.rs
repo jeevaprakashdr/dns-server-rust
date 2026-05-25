@@ -1,3 +1,7 @@
+use std::net::Ipv4Addr;
+
+use rand::RngExt;
+
 pub(crate) struct Message {
     pub(crate) header: Header,
     question: Question,
@@ -26,11 +30,27 @@ impl Message {
         self.question.qtype = qtype;
         self.question.qclass = qclass;
         self.header.set_question();
-        self.header.set_answer();
     }
 
-    pub(crate) fn set_answer(&mut self) {
-        self.header.set_answer();
+    pub(crate) fn set_answer(&mut self, name: String, qtype: QType, qclass: QClass) {
+        self.answer.name = name;
+        self.answer.qtype = qtype;
+        self.answer.qclass = qclass;
+        let mut rng = rand::rng();
+        self.answer.ttl = rng.random::<u32>();
+        
+        self.answer.rdata = match qtype {
+            QType::A => {
+                let localhost = Ipv4Addr::new(127, 0, 0, 1);
+                localhost.to_bits()
+            },
+        };
+        
+        self.answer.rdlength = match qtype {
+            QType::A => 4,
+        };
+        
+        self.header.set_answer()
     }
 }
 
@@ -44,25 +64,10 @@ pub(crate) struct Question {
 impl Question {
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
-        inner.extend_from_slice(self.encode_name().as_slice());
+        inner.extend_from_slice(encode_name(self.name.clone()).as_slice());
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner
-    }
-
-    fn encode_name(&self) -> Vec<u8> {
-        let domain = self.name.split(".").collect::<Vec<_>>();
-        let base = domain.first().unwrap();
-        let tld = domain.last().unwrap();
-
-        let mut encoded_bytes = Vec::new();
-        encoded_bytes.push(base.len() as u8);
-        encoded_bytes.extend_from_slice(base.as_bytes());
-        encoded_bytes.push(tld.len() as u8);
-        encoded_bytes.extend_from_slice(tld.as_bytes());
-        encoded_bytes.push(0 as u8);
-
-        encoded_bytes
     }
 }
 
@@ -71,12 +76,37 @@ pub(crate) struct Answer {
     name: String,
     qtype: QType,
     qclass: QClass,
+    ttl: u32,
+    rdata: u32,
+    rdlength: u16,
 }
 
 impl Answer {
     fn to_vec(&self) -> Vec<u8> {
-        Vec::new()
+        let mut inner = Vec::<u8>::new();
+        inner.extend_from_slice(encode_name(self.name.clone()).as_slice());
+        inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
+        inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
+        inner.extend_from_slice(&self.ttl.to_be_bytes());
+        inner.extend_from_slice(&self.rdlength.to_be_bytes());
+        inner.extend_from_slice(&self.rdata.to_be_bytes());
+        inner
     }
+}
+
+fn encode_name(name: String) -> Vec<u8> {
+    let domain = name.split(".").collect::<Vec<_>>();
+    let base = domain.first().unwrap();
+    let tld = domain.last().unwrap();
+
+    let mut encoded_bytes = Vec::new();
+    encoded_bytes.push(base.len() as u8);
+    encoded_bytes.extend_from_slice(base.as_bytes());
+    encoded_bytes.push(tld.len() as u8);
+    encoded_bytes.extend_from_slice(tld.as_bytes());
+    encoded_bytes.push(0 as u8);
+
+    encoded_bytes
 }
 
 pub(crate) enum QClass {
