@@ -25,14 +25,14 @@ impl Message {
         data
     }
 
-    pub(crate) fn set_question(&mut self, name: String, qtype: QType, qclass: QClass) {
+    pub(crate) fn set_question(&mut self, name: Vec<u8>, qtype: QType, qclass: QClass) {
         self.question.name = name;
         self.question.qtype = qtype;
         self.question.qclass = qclass;
         self.header.set_question();
     }
 
-    pub(crate) fn set_answer(&mut self, name: String, qtype: QType, qclass: QClass) {
+    pub(crate) fn set_answer(&mut self, name: Vec<u8>, qtype: QType, qclass: QClass) {
         self.answer.name = name;
         self.answer.qtype = qtype;
         self.answer.qclass = qclass;
@@ -56,7 +56,7 @@ impl Message {
 
 #[derive(Default)]
 pub(crate) struct Question {
-    name: String,
+    name: Vec<u8>,
     qtype: QType,
     qclass: QClass,
 }
@@ -64,7 +64,7 @@ pub(crate) struct Question {
 impl Question {
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
-        inner.extend_from_slice(encode_name(self.name.clone()).as_slice());
+        inner.extend_from_slice(self.name.as_slice());
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner
@@ -73,7 +73,7 @@ impl Question {
 
 #[derive(Default)]
 pub(crate) struct Answer {
-    name: String,
+    name: Vec<u8>,
     qtype: QType,
     qclass: QClass,
     ttl: u32,
@@ -84,7 +84,7 @@ pub(crate) struct Answer {
 impl Answer {
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
-        inner.extend_from_slice(encode_name(self.name.clone()).as_slice());
+        inner.extend_from_slice(self.name.as_slice());
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.ttl.to_be_bytes());
@@ -92,21 +92,6 @@ impl Answer {
         inner.extend_from_slice(&self.rdata.to_be_bytes());
         inner
     }
-}
-
-fn encode_name(name: String) -> Vec<u8> {
-    let domain = name.split(".").collect::<Vec<_>>();
-    let base = domain.first().unwrap();
-    let tld = domain.last().unwrap();
-
-    let mut encoded_bytes = Vec::new();
-    encoded_bytes.push(base.len() as u8);
-    encoded_bytes.extend_from_slice(base.as_bytes());
-    encoded_bytes.push(tld.len() as u8);
-    encoded_bytes.extend_from_slice(tld.as_bytes());
-    encoded_bytes.push(0 as u8);
-
-    encoded_bytes
 }
 
 pub(crate) enum QClass {
