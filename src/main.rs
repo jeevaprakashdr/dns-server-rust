@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
-use crate::core::{Message, QClass, QType};
+use crate::core::{Message, QClass, QType, Question};
 
 mod core;
 
@@ -19,7 +19,7 @@ fn main() {
                 message.header.set_qr();
                 message.header.set_opcode(&buf[2]);
                 message.header.set_rcode();
-                let domain_name = parse_domain_name(buf);
+                let domain_name = Question::parse_domain_name(buf);
                 message.set_question(domain_name.clone(), QType::A, QClass::IN);
                 message.set_answer(domain_name, QType::A, QClass::IN);
 
@@ -37,20 +37,4 @@ fn main() {
             }
         }
     }
-}
-
-fn parse_domain_name(buf: [u8; 512]) -> Vec<u8> {
-    // println!("{:?}", &buf[12..]);
-    let filtere_header = &buf[12..];
-
-    let split_filtered = filtere_header
-        .split(|&pred| pred == 0x00)
-        .collect::<Vec<_>>();
-
-    let name = split_filtered.first().unwrap();
-    println!("parsed domain name {:?}", String::from_utf8(name.to_vec()));
-
-    let mut name = name.to_vec();
-    name.push(0 as u8);
-    name
 }

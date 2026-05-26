@@ -69,6 +69,43 @@ impl Question {
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner
     }
+
+    pub(crate) fn parse_domain_name(buf: [u8; 512]) -> Vec<u8> {
+        let qc = parse_questions_count(buf);
+        // let names = Vec::new();
+
+        let start = 12;
+        let filtere_header = &buf[start..];
+
+        let termininator_index = find_null_terminator_index(filtere_header);
+        let name = &filtere_header[..termininator_index + 1].to_vec().clone();
+        println!("parsed domain name {:?}", String::from_utf8(name.clone()));
+
+        name.clone()
+    }
+}
+
+fn find_null_terminator_index(filtere_header: &[u8]) -> usize {
+    let mut index = 0;
+    for (i, ele) in filtere_header.iter().enumerate() {
+        if ele == &0x00 {
+            index = i;
+            break;
+        }
+    }
+
+    println!("index {}", index);
+    return index;
+}
+
+fn parse_questions_count(buf: [u8; 512]) -> u16 {
+    let header = &buf[..12];
+    println!("{:?}", header);
+
+    let qc_byte = (header[4..=5]).as_array::<2>().unwrap();
+    let count = u16::from_be_bytes(*qc_byte);
+    println!("questions_count {:?}", count);
+    count
 }
 
 #[derive(Default)]
