@@ -21,7 +21,7 @@ fn main() {
                 message.header.set_rcode();
                 let domain_name = Question::parse_domain_name(buf);
                 message.set_question(domain_name.clone(), QType::A, QClass::IN);
-                message.set_answer(domain_name, QType::A, QClass::IN);
+                message.set_answer(domain_name.first().unwrap().to_vec(), QType::A, QClass::IN);
 
                 let message = message.to_vec();
                 // println!("{:?}", message);

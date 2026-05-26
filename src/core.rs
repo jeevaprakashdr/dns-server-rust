@@ -4,7 +4,7 @@ use rand::RngExt;
 
 pub(crate) struct Message {
     pub(crate) header: Header,
-    question: Question,
+    question: Vec<Question>,
     answer: Answer,
 }
 
@@ -12,7 +12,7 @@ impl Message {
     pub(crate) fn new() -> Self {
         Self {
             header: Header::default(),
-            question: Question::default(),
+            question: Vec::new(),
             answer: Answer::default(),
         }
     }
@@ -20,16 +20,21 @@ impl Message {
     pub(crate) fn to_vec(&mut self) -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(&self.header.inner);
-        data.extend_from_slice(&self.question.to_vec());
+        for ele in &self.question {
+            data.extend_from_slice(&ele.to_vec());
+        }
         data.extend_from_slice(&self.answer.to_vec());
+
         data
     }
 
-    pub(crate) fn set_question(&mut self, name: Vec<u8>, qtype: QType, qclass: QClass) {
-        self.question.name = name;
-        self.question.qtype = qtype;
-        self.question.qclass = qclass;
-        self.header.set_question();
+    pub(crate) fn set_question(&mut self, name: Vec<Vec<u8>>, qtype: QType, qclass: QClass) {
+        self.header.set_question(name.len());
+
+        for n in name {
+            let question = Question::new(n);
+            self.question.push(question);
+        }
     }
 
     pub(crate) fn set_answer(&mut self, name: Vec<u8>, qtype: QType, qclass: QClass) {
@@ -62,6 +67,14 @@ pub(crate) struct Question {
 }
 
 impl Question {
+    pub(crate) fn new(name: Vec<u8>) -> Self {
+        Self {
+            name,
+            qtype: QType::A,
+            qclass: QClass::IN,
+        }
+    }
+
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
@@ -70,25 +83,37 @@ impl Question {
         inner
     }
 
-    pub(crate) fn parse_domain_name(buf: [u8; 512]) -> Vec<u8> {
-        let count = 0;
+    pub(crate) fn parse_domain_name(buf: [u8; 512]) -> Vec<Vec<u8>> {
         let qc = parse_questions_count(buf);
 
         let mut names = Vec::new();
         let question_start_index = 12;
         let mut next_question_start_index = question_start_index;
 
-        while count < qc {
+        let mut count = 0;
+        while (count < qc) {
             let filtere_header = &buf[next_question_start_index..];
-            let termininator_index = find_null_terminator_index(filtere_header);
-            let name = &filtere_header[..termininator_index + 1].to_vec().clone();
+            let mut termininator_index = find_null_terminator_index(filtere_header);
+            termininator_index += 1; // including nul; terminator index
+            let name = &filtere_header[..termininator_index].to_vec().clone();
             println!("parsed domain name {:?}", String::from_utf8(name.clone()));
+            // println!("{:?}", &filtere_header[..termininator_index + 4]);
 
-            next_question_start_index = termininator_index + 4;
+            let rtype = (filtere_header[termininator_index..termininator_index + 2])
+                .as_array::<2>()
+                .unwrap();
+            // println!("rtype {:?}", rtype);
+            let rclass = (filtere_header[termininator_index + 2..termininator_index + 4])
+                .as_array::<2>()
+                .unwrap();
+            // println!("rclass {:?}", rclass);
+
             names.push(name.clone());
+            count += 1;
+            next_question_start_index = termininator_index + 5;
         }
-
-        Vec::new()
+        println!("{:?}", names);
+        names
     }
 }
 
@@ -196,9 +221,8 @@ impl Header {
         self.inner[2] |= *opcode;
     }
 
-    fn set_question(&mut self) {
-        let count: u16 = 1;
-        self.inner[4..6].copy_from_slice(&count.to_be_bytes())
+    fn set_question(&mut self, count: usize) {
+        self.inner[4..6].copy_from_slice(&(count as u16).to_be_bytes())
     }
 
     fn set_answer(&mut self) {
