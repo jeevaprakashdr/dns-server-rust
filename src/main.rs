@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
-use crate::core::{Message, QClass, QType, Question};
+use crate::core::{Answer, Message, Question};
 
 mod core;
 
@@ -13,18 +13,28 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
+                println!("{:?}", &buf[..100]);
 
                 let mut message = Message::new();
                 message.header.set_id(&buf[..2].to_vec());
                 message.header.set_qr();
                 message.header.set_opcode(&buf[2]);
                 message.header.set_rcode();
-                let domain_name = Question::parse_domain_name(buf);
-                message.set_question(domain_name.clone(), QType::A, QClass::IN);
-                message.set_answer(domain_name.first().unwrap().to_vec(), QType::A, QClass::IN);
+                let questions = Question::parse(buf);
+                message.set_question(questions.clone());
+
+                let len = Question::len(questions.clone());
+                println!("Questions len {}", len);
+
+                let mut answers = Vec::new();
+                for question in questions.clone() {
+                    let answer = Answer::new(question.name, question.qtype, question.qclass);
+                    answers.push(answer);
+                }
+                message.set_answer(answers);
 
                 let message = message.to_vec();
-                // println!("{:?}", message);
+                println!("sent message {:?}", &message);
 
                 udp_socket
                     .send_to(&message, source)

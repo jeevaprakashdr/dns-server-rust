@@ -1,11 +1,9 @@
 use std::net::Ipv4Addr;
 
-use rand::RngExt;
-
 pub(crate) struct Message {
     pub(crate) header: Header,
     question: Vec<Question>,
-    answer: Answer,
+    answer: Vec<Answer>,
 }
 
 impl Message {
@@ -13,7 +11,7 @@ impl Message {
         Self {
             header: Header::default(),
             question: Vec::new(),
-            answer: Answer::default(),
+            answer: Vec::new(),
         }
     }
 
@@ -23,97 +21,99 @@ impl Message {
         for ele in &self.question {
             data.extend_from_slice(&ele.to_vec());
         }
-        data.extend_from_slice(&self.answer.to_vec());
+
+        for ele in &self.answer {
+            data.extend_from_slice(&ele.to_vec());
+        }
 
         data
     }
 
-    pub(crate) fn set_question(&mut self, name: Vec<Vec<u8>>, qtype: QType, qclass: QClass) {
-        self.header.set_question(name.len());
+    pub(crate) fn set_question(&mut self, questions: Vec<Question>) {
+        self.header.set_question(questions.len());
 
-        for n in name {
-            let question = Question::new(n);
-            self.question.push(question);
+        for q in questions {
+            self.question.push(q);
         }
     }
 
-    pub(crate) fn set_answer(&mut self, name: Vec<u8>, qtype: QType, qclass: QClass) {
-        self.answer.name = name;
-        self.answer.qtype = qtype;
-        self.answer.qclass = qclass;
-        let mut rng = rand::rng();
-        self.answer.ttl = rng.random::<u32>();
+    pub(crate) fn set_answer(&mut self, answers: Vec<Answer>) {
+        self.header.set_answer(answers.len());
 
-        self.answer.rdata = match qtype {
-            QType::A => {
-                let localhost = Ipv4Addr::new(127, 0, 0, 1);
-                localhost.to_bits()
-            }
-        };
-
-        self.answer.rdlength = match qtype {
-            QType::A => 4,
-        };
-
-        self.header.set_answer()
+        for a in answers {
+            self.answer.push(a);
+        }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct Question {
-    name: Vec<u8>,
-    qtype: QType,
-    qclass: QClass,
+    pub(crate) name: Vec<u8>,
+    pub(crate) qtype: QType,
+    pub(crate) qclass: QClass,
 }
 
 impl Question {
-    pub(crate) fn new(name: Vec<u8>) -> Self {
+    pub(crate) fn new(name: Vec<u8>, qtype: QType, qclass: QClass) -> Self {
         Self {
             name,
-            qtype: QType::A,
-            qclass: QClass::IN,
+            qtype,
+            qclass,
         }
     }
 
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
+        inner.push(0 as u8);
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner
     }
 
-    pub(crate) fn parse_domain_name(buf: [u8; 512]) -> Vec<Vec<u8>> {
+    pub(crate) fn parse(buf: [u8; 512]) -> Vec<Question> {
         let qc = parse_questions_count(buf);
 
-        let mut names = Vec::new();
+        let mut questions = Vec::new();
         let question_start_index = 12;
         let mut next_question_start_index = question_start_index;
 
         let mut count = 0;
-        while (count < qc) {
+        while count < qc {
             let filtere_header = &buf[next_question_start_index..];
-            let mut termininator_index = find_null_terminator_index(filtere_header);
-            termininator_index += 1; // including nul; terminator index
+            let termininator_index = find_null_terminator_index(filtere_header);
             let name = &filtere_header[..termininator_index].to_vec().clone();
-            println!("parsed domain name {:?}", String::from_utf8(name.clone()));
-            // println!("{:?}", &filtere_header[..termininator_index + 4]);
 
-            let rtype = (filtere_header[termininator_index..termininator_index + 2])
+            // termininator_index + 1 to ignore the null terminator after the domain name.
+            let qtype = (filtere_header[termininator_index + 1..termininator_index + 3])
                 .as_array::<2>()
                 .unwrap();
-            // println!("rtype {:?}", rtype);
-            let rclass = (filtere_header[termininator_index + 2..termininator_index + 4])
+
+            let qclass = (filtere_header[termininator_index + 3..termininator_index + 5])
                 .as_array::<2>()
                 .unwrap();
-            // println!("rclass {:?}", rclass);
 
-            names.push(name.clone());
-            count += 1;
+            let question = Question::new(
+                name.clone(),
+                QType::try_from(u16::from_be_bytes(*qtype)).unwrap(),
+                QClass::try_from(u16::from_be_bytes(*qclass)).unwrap(),
+            );
+            questions.push(question);
             next_question_start_index = termininator_index + 5;
+
+            count += 1;
         }
-        println!("{:?}", names);
-        names
+
+        questions
+    }
+
+    pub(crate) fn len(questions: Vec<Question>) -> usize {
+        questions
+            .iter()
+            .map(|f| f.to_vec())
+            .flat_map(|f| f)
+            .collect::<Vec<_>>()
+            .len()
     }
 }
 
@@ -126,8 +126,7 @@ fn find_null_terminator_index(filtere_header: &[u8]) -> usize {
         }
     }
 
-    println!("index {}", index);
-    return index;
+    index
 }
 
 fn parse_questions_count(buf: [u8; 512]) -> u16 {
@@ -151,18 +150,45 @@ pub(crate) struct Answer {
 }
 
 impl Answer {
+    pub(crate) fn new(name: Vec<u8>, qtype: QType, qclass: QClass) -> Self {
+        let ttl = 60;
+        // let rdata = match qtype {
+        //     QType::A => {
+        //         let localhost = Ipv4Addr::new(127, 0, 0, 1);
+        //         localhost.to_bits()
+        //     }
+        // };
+        let rdata = 0 as u32;
+
+        let rdlength = match qtype {
+            QType::A => 4,
+        };
+
+        Self {
+            name,
+            qtype,
+            qclass,
+            ttl,
+            rdata,
+            rdlength,
+        }
+    }
+
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
+        inner.push(0 as u8);
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.ttl.to_be_bytes());
         inner.extend_from_slice(&self.rdlength.to_be_bytes());
         inner.extend_from_slice(&self.rdata.to_be_bytes());
+
         inner
     }
 }
 
+#[derive(Debug, Clone)]
 pub(crate) enum QClass {
     IN,
 }
@@ -175,12 +201,24 @@ impl QClass {
     }
 }
 
+impl TryFrom<u16> for QClass {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(QClass::IN),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Default for QClass {
     fn default() -> Self {
         QClass::IN
     }
 }
 
+#[derive(Debug, Clone)]
 pub(crate) enum QType {
     A,
 }
@@ -189,6 +227,17 @@ impl QType {
     pub(crate) fn to_byte(&self) -> u16 {
         match self {
             QType::A => 1 as u16,
+        }
+    }
+}
+
+impl TryFrom<u16> for QType {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(QType::A),
+            _ => Err(()),
         }
     }
 }
@@ -225,8 +274,7 @@ impl Header {
         self.inner[4..6].copy_from_slice(&(count as u16).to_be_bytes())
     }
 
-    fn set_answer(&mut self) {
-        let count: u16 = 1;
-        self.inner[6..8].copy_from_slice(&count.to_be_bytes())
+    fn set_answer(&mut self, count: usize) {
+        self.inner[6..8].copy_from_slice(&(count as u16).to_be_bytes())
     }
 }
