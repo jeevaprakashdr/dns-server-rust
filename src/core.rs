@@ -71,17 +71,24 @@ impl Question {
     }
 
     pub(crate) fn parse_domain_name(buf: [u8; 512]) -> Vec<u8> {
+        let count = 0;
         let qc = parse_questions_count(buf);
-        // let names = Vec::new();
 
-        let start = 12;
-        let filtere_header = &buf[start..];
+        let mut names = Vec::new();
+        let question_start_index = 12;
+        let mut next_question_start_index = question_start_index;
 
-        let termininator_index = find_null_terminator_index(filtere_header);
-        let name = &filtere_header[..termininator_index + 1].to_vec().clone();
-        println!("parsed domain name {:?}", String::from_utf8(name.clone()));
+        while count < qc {
+            let filtere_header = &buf[next_question_start_index..];
+            let termininator_index = find_null_terminator_index(filtere_header);
+            let name = &filtere_header[..termininator_index + 1].to_vec().clone();
+            println!("parsed domain name {:?}", String::from_utf8(name.clone()));
 
-        name.clone()
+            next_question_start_index = termininator_index + 4;
+            names.push(name.clone());
+        }
+
+        Vec::new()
     }
 }
 
