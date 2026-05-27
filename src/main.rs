@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
 
-use crate::core::{Answer, Message, Question};
+use crate::core::{Message, Question};
 
 mod core;
 
@@ -20,15 +20,8 @@ fn main() {
                 message.header.set_qr();
                 message.header.set_opcode(&buf[2]);
                 message.header.set_rcode();
-                let questions = Question::parse_new(buf.as_slice());
-                message.set_question(questions.clone());
-
-                let mut answers = Vec::new();
-                for question in questions.clone() {
-                    let answer = Answer::new(question.name, question.qtype, question.qclass);
-                    answers.push(answer);
-                }
-                message.set_answer(answers);
+                message.set_question(Question::parse(buf.as_slice()));
+                message.set_answer();
 
                 let message = message.to_vec();
                 println!("sent message {:?}", &message);

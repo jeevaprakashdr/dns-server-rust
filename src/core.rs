@@ -37,20 +37,21 @@ impl Message {
         }
     }
 
-    pub(crate) fn set_answer(&mut self, answers: Vec<Answer>) {
-        self.header.set_answer(answers.len());
+    pub(crate) fn set_answer(&mut self) {
+        self.header.set_answer(self.question.len());
 
-        for a in answers {
-            self.answer.push(a);
+        for q in self.question.clone() {
+            let answer = Answer::new(q.name, q.qtype, q.qclass);
+            self.answer.push(answer);
         }
     }
 }
 
 #[derive(Default, Clone, Debug)]
 pub(crate) struct Question {
-    pub(crate) name: Vec<u8>,
-    pub(crate) qtype: QType,
-    pub(crate) qclass: QClass,
+    name: Vec<u8>,
+    qtype: QType,
+    qclass: QClass,
 }
 
 impl Question {
@@ -70,9 +71,9 @@ impl Question {
         inner
     }
 
-    pub(crate) fn parse_new(buf: &[u8]) -> Vec<Question> {
+    pub(crate) fn parse(buf: &[u8]) -> Vec<Question> {
         let header_len = 12;
-        let qc = parse_questions_count_new(buf);
+        let qc = parse_questions_count(buf);
         let mut count = 0;
         let buf = buf[header_len..].to_vec();
         let mut current_index = 0;
@@ -87,26 +88,22 @@ impl Question {
                 break;
             }
 
-            // println!("currentindex {} {}", current_index, *current.unwrap());
             name.push(*current.unwrap());
 
             if current == Some(&0x00) {
-                println!("name {:?}", String::from_utf8(name.to_vec()).unwrap());
                 if base_domain_name.is_empty() {
                     base_domain_name = name.clone().as_slice()[..].to_vec();
                 }
 
-                // println!(
-                //     "base_domain_name {:?}",
-                //     String::from_utf8(base_domain_name.to_vec()).unwrap()
-                // );
                 let n = std::mem::take(&mut name);
                 let question = Question::new(n, QType::A, QClass::IN);
                 questions.push(question);
                 current_index += 4;
                 count += 1;
             } else if current == Some(&0xC0) {
+                name = name[..name.len() - 1].to_vec();
                 name.extend_from_slice(&base_domain_name[4..]);
+
                 let n = std::mem::take(&mut name);
                 let question = Question::new(n, QType::A, QClass::IN);
                 questions.push(question);
@@ -119,17 +116,15 @@ impl Question {
             }
             current_index += 1;
         }
-        // println!("{:?}", questions);
+
         questions
     }
 }
 
-fn parse_questions_count_new(buf: &[u8]) -> u16 {
+fn parse_questions_count(buf: &[u8]) -> u16 {
     let header = &buf[..12];
     let qc_byte = (header[4..=5]).as_array::<2>().unwrap();
-    let count = u16::from_be_bytes(*qc_byte);
-
-    count
+    u16::from_be_bytes(*qc_byte)
 }
 
 #[derive(Default)]
@@ -282,8 +277,8 @@ mod test {
             100, 101, 102, 192, 16, 0, 1, 0, 1, 3, 104, 101, 102, 192, 16, 0, 1, 0, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-
-        let questions = Question::parse_new(request_payload.as_slice());
+        println!("{:?}", request_payload);
+        let questions = Question::parse(request_payload.as_slice());
 
         assert_eq!(questions.len(), 3);
     }
