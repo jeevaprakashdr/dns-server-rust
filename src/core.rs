@@ -152,13 +152,12 @@ pub(crate) struct Answer {
 impl Answer {
     pub(crate) fn new(name: Vec<u8>, qtype: QType, qclass: QClass) -> Self {
         let ttl = 60;
-        // let rdata = match qtype {
-        //     QType::A => {
-        //         let localhost = Ipv4Addr::new(127, 0, 0, 1);
-        //         localhost.to_bits()
-        //     }
-        // };
-        let rdata = 0 as u32;
+        let rdata = match qtype {
+            QType::A => {
+                let localhost = Ipv4Addr::new(127, 0, 0, 1);
+                localhost.to_bits()
+            }
+        };
 
         let rdlength = match qtype {
             QType::A => 4,
@@ -181,8 +180,8 @@ impl Answer {
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.ttl.to_be_bytes());
-        inner.extend_from_slice(&self.rdlength.to_be_bytes());
-        inner.extend_from_slice(&self.rdata.to_be_bytes());
+        inner.extend_from_slice(&[0, 4]);
+        inner.extend_from_slice(&[127, 0, 0, 1]);
 
         inner
     }
@@ -258,8 +257,8 @@ impl Header {
         self.inner[..2].copy_from_slice(&id)
     }
 
-    pub(crate) fn set_qr(&mut self) {
-        self.inner[2] |= 0x80
+    pub(crate) fn set_qr(&mut self, qr: &u8) {
+        self.inner[2] |= 0x80;
     }
 
     pub(crate) fn set_rcode(&mut self) {

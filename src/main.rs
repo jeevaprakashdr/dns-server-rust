@@ -13,18 +13,15 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
-                println!("{:?}", &buf[..100]);
+                println!("recieved {:?}", &buf[..100]);
 
                 let mut message = Message::new();
                 message.header.set_id(&buf[..2].to_vec());
-                message.header.set_qr();
+                message.header.set_qr(&buf[2]);
                 message.header.set_opcode(&buf[2]);
                 message.header.set_rcode();
                 let questions = Question::parse(buf);
                 message.set_question(questions.clone());
-
-                let len = Question::len(questions.clone());
-                println!("Questions len {}", len);
 
                 let mut answers = Vec::new();
                 for question in questions.clone() {
