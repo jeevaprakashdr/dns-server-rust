@@ -17,10 +17,10 @@ fn main() {
 
                 let mut message = Message::new();
                 message.header.set_id(&buf[..2].to_vec());
-                message.header.set_qr(&buf[2]);
+                message.header.set_qr();
                 message.header.set_opcode(&buf[2]);
                 message.header.set_rcode();
-                let questions = Question::parse(buf);
+                let questions = Question::parse_new(buf.as_slice());
                 message.set_question(questions.clone());
 
                 let mut answers = Vec::new();

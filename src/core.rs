@@ -22,11 +22,11 @@ impl Message {
             data.extend_from_slice(&ele.to_vec());
         }
 
+        let mut answer_section = Vec::new();
         for ele in &self.answer {
-            data.extend_from_slice(&ele.to_vec());
+            answer_section.extend_from_slice(&ele.to_vec());
         }
-
-        data
+        [&data[..], &answer_section[..]].concat()
     }
 
     pub(crate) fn set_question(&mut self, questions: Vec<Question>) {
@@ -46,7 +46,7 @@ impl Message {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub(crate) struct Question {
     pub(crate) name: Vec<u8>,
     pub(crate) qtype: QType,
@@ -65,77 +65,70 @@ impl Question {
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
-        inner.push(0 as u8);
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner
     }
 
-    pub(crate) fn parse(buf: [u8; 512]) -> Vec<Question> {
-        let qc = parse_questions_count(buf);
-
-        let mut questions = Vec::new();
-        let question_start_index = 12;
-        let mut next_question_start_index = question_start_index;
-
+    pub(crate) fn parse_new(buf: &[u8]) -> Vec<Question> {
+        let header_len = 12;
+        let qc = parse_questions_count_new(buf);
         let mut count = 0;
-        while count < qc {
-            let filtere_header = &buf[next_question_start_index..];
-            let termininator_index = find_null_terminator_index(filtere_header);
-            let name = &filtere_header[..termininator_index].to_vec().clone();
+        let buf = buf[header_len..].to_vec();
+        let mut current_index = 0;
 
-            // termininator_index + 1 to ignore the null terminator after the domain name.
-            let qtype = (filtere_header[termininator_index + 1..termininator_index + 3])
-                .as_array::<2>()
-                .unwrap();
+        let mut questions = Vec::<Question>::new();
+        let mut name = Vec::new();
+        let mut base_domain_name = Vec::<u8>::new();
+        loop {
+            let current = buf.get(current_index);
 
-            let qclass = (filtere_header[termininator_index + 3..termininator_index + 5])
-                .as_array::<2>()
-                .unwrap();
+            if current.is_none() {
+                break;
+            }
 
-            let question = Question::new(
-                name.clone(),
-                QType::try_from(u16::from_be_bytes(*qtype)).unwrap(),
-                QClass::try_from(u16::from_be_bytes(*qclass)).unwrap(),
-            );
-            questions.push(question);
-            next_question_start_index = termininator_index + 5;
+            // println!("currentindex {} {}", current_index, *current.unwrap());
+            name.push(*current.unwrap());
 
-            count += 1;
+            if current == Some(&0x00) {
+                println!("name {:?}", String::from_utf8(name.to_vec()).unwrap());
+                if base_domain_name.is_empty() {
+                    base_domain_name = name.clone().as_slice()[..].to_vec();
+                }
+
+                // println!(
+                //     "base_domain_name {:?}",
+                //     String::from_utf8(base_domain_name.to_vec()).unwrap()
+                // );
+                let n = std::mem::take(&mut name);
+                let question = Question::new(n, QType::A, QClass::IN);
+                questions.push(question);
+                current_index += 4;
+                count += 1;
+            } else if current == Some(&0xC0) {
+                name.extend_from_slice(&base_domain_name[4..]);
+                let n = std::mem::take(&mut name);
+                let question = Question::new(n, QType::A, QClass::IN);
+                questions.push(question);
+                current_index += 4;
+                count += 1;
+            }
+
+            if count >= qc {
+                break;
+            }
+            current_index += 1;
         }
-
+        // println!("{:?}", questions);
         questions
-    }
-
-    pub(crate) fn len(questions: Vec<Question>) -> usize {
-        questions
-            .iter()
-            .map(|f| f.to_vec())
-            .flat_map(|f| f)
-            .collect::<Vec<_>>()
-            .len()
     }
 }
 
-fn find_null_terminator_index(filtere_header: &[u8]) -> usize {
-    let mut index = 0;
-    for (i, ele) in filtere_header.iter().enumerate() {
-        if ele == &0x00 {
-            index = i;
-            break;
-        }
-    }
-
-    index
-}
-
-fn parse_questions_count(buf: [u8; 512]) -> u16 {
+fn parse_questions_count_new(buf: &[u8]) -> u16 {
     let header = &buf[..12];
-    println!("{:?}", header);
-
     let qc_byte = (header[4..=5]).as_array::<2>().unwrap();
     let count = u16::from_be_bytes(*qc_byte);
-    println!("questions_count {:?}", count);
+
     count
 }
 
@@ -176,12 +169,11 @@ impl Answer {
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
-        inner.push(0 as u8);
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.qclass.to_byte().to_be_bytes());
         inner.extend_from_slice(&self.ttl.to_be_bytes());
-        inner.extend_from_slice(&[0, 4]);
-        inner.extend_from_slice(&[127, 0, 0, 1]);
+        inner.extend_from_slice(&self.rdlength.to_be_bytes());
+        inner.extend_from_slice(&self.rdata.to_be_bytes());
 
         inner
     }
@@ -257,7 +249,7 @@ impl Header {
         self.inner[..2].copy_from_slice(&id)
     }
 
-    pub(crate) fn set_qr(&mut self, qr: &u8) {
+    pub(crate) fn set_qr(&mut self) {
         self.inner[2] |= 0x80;
     }
 
@@ -275,5 +267,24 @@ impl Header {
 
     fn set_answer(&mut self, count: usize) {
         self.inner[6..8].copy_from_slice(&(count as u16).to_be_bytes())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::core::Question;
+
+    #[test]
+    fn parse_questions_from_request_payload() {
+        let request_payload: Vec<u8> = vec![
+            194, 154, 1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99, 17, 108, 111, 110, 103, 97, 115,
+            115, 100, 111, 109, 97, 105, 110, 110, 97, 109, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1, 3,
+            100, 101, 102, 192, 16, 0, 1, 0, 1, 3, 104, 101, 102, 192, 16, 0, 1, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let questions = Question::parse_new(request_payload.as_slice());
+
+        assert_eq!(questions.len(), 3);
     }
 }
