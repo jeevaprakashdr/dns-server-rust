@@ -1,5 +1,8 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
+use std::vec;
+
+use clap::Parser;
 
 use crate::core::{Message, Question};
 
@@ -14,13 +17,32 @@ fn main() {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
                 println!("recieved {:?}", &buf[..100]);
+                let args = ServerArguments::parse();
+                println!("recieved {:?}", args);
+                let forward_address = args.resolver.split(|p| p == ':').collect::<Vec<_>>();
 
                 let mut message = Message::new();
                 message.header.set_id(&buf[..2].to_vec());
                 message.header.set_qr();
                 message.header.set_opcode(&buf[2]);
                 message.header.set_rcode();
-                message.set_question(Question::parse(buf.as_slice()));
+
+                let questions = Question::parse(buf.as_slice());
+                let mut forwarder_answers = Vec::new();
+                if !forward_address.is_empty() && forward_address.len() == 2 {
+                    for q in questions.clone() {
+                        udp_socket
+                            .send_to(&q.to_vec(), &args.resolver)
+                            .expect("Failed to send request to forward server");
+
+                        let mut response = [0u8; 512];
+                        let (count, _) = udp_socket.recv_from(&mut response).unwrap();
+                        println!("forward answeres {:?}", &response[..count]);
+                        forwarder_answers.extend_from_slice(&response[..count]);
+                    }
+                }
+
+                message.set_question(questions);
                 message.set_answer();
 
                 let message = message.to_vec();
@@ -37,4 +59,10 @@ fn main() {
             }
         }
     }
+}
+
+#[derive(clap::Parser, Debug)]
+pub struct ServerArguments {
+    #[arg(short, long)]
+    pub resolver: String,
 }

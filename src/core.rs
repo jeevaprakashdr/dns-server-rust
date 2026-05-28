@@ -1,5 +1,6 @@
 use std::net::Ipv4Addr;
 
+#[derive(Clone)]
 pub(crate) struct Message {
     pub(crate) header: Header,
     question: Vec<Question>,
@@ -45,6 +46,10 @@ impl Message {
             self.answer.push(answer);
         }
     }
+
+    pub(crate) fn set_answer_from_resolver(&mut self) {
+        self.header.set_answer(self.question.len());
+    }
 }
 
 #[derive(Default, Clone, Debug)]
@@ -63,7 +68,7 @@ impl Question {
         }
     }
 
-    fn to_vec(&self) -> Vec<u8> {
+    pub(crate) fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
         inner.extend_from_slice(&self.qtype.to_byte().to_be_bytes());
@@ -127,7 +132,7 @@ fn parse_questions_count(buf: &[u8]) -> u16 {
     u16::from_be_bytes(*qc_byte)
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Answer {
     name: Vec<u8>,
     qtype: QType,
@@ -234,7 +239,7 @@ impl Default for QType {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Header {
     inner: [u8; 12],
 }
