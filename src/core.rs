@@ -16,6 +16,14 @@ impl Message {
         }
     }
 
+    pub(crate) fn Create(header: Header, question: Question) -> Self {
+        Self {
+            header,
+            question: vec![question],
+            answer: Vec::new(),
+        }
+    }
+
     pub(crate) fn to_vec(&mut self) -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(&self.header.inner);
@@ -50,6 +58,7 @@ impl Message {
     pub(crate) fn set_answer_from_resolver(&mut self) {
         self.header.set_answer(self.question.len());
     }
+
 }
 
 #[derive(Default, Clone, Debug)]

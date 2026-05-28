@@ -31,8 +31,9 @@ fn main() {
                 let mut forwarder_answers = Vec::new();
                 if !forward_address.is_empty() && forward_address.len() == 2 {
                     for q in questions.clone() {
+                        let mut m = Message::Create(message.header.clone(), q);
                         udp_socket
-                            .send_to(&q.to_vec(), &args.resolver)
+                            .send_to(&m.to_vec(), &args.resolver)
                             .expect("Failed to send request to forward server");
 
                         let mut response = [0u8; 512];
