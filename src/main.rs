@@ -28,20 +28,20 @@ fn main() {
                 message.header.set_rcode();
 
                 let questions = Question::parse(buf.as_slice());
-                let mut forwarder_answers = Vec::new();
-                if !forward_address.is_empty() && forward_address.len() == 2 {
-                    for q in questions.clone() {
-                        let mut m = Message::Create(message.header.clone(), q);
-                        udp_socket
-                            .send_to(&m.to_vec(), &args.resolver)
-                            .expect("Failed to send request to forward server");
+                // let mut forwarder_answers = Vec::new();
+                // if !forward_address.is_empty() && forward_address.len() == 2 {
+                //     for q in questions.clone() {
+                //         let mut m = Message::Create(message.header.clone(), q);
+                //         udp_socket
+                //             .send_to(&m.to_vec(), &args.resolver)
+                //             .expect("Failed to send request to forward server");
 
-                        let mut response = [0u8; 512];
-                        let (count, _) = udp_socket.recv_from(&mut response).unwrap();
-                        println!("forward answeres {:?}", &response[..count]);
-                        forwarder_answers.extend_from_slice(&response[..count]);
-                    }
-                }
+                //         let mut response = [0u8; 512];
+                //         let (count, _) = udp_socket.recv_from(&mut response).unwrap();
+                //         println!("forward answeres {:?}", &response[..count]);
+                //         forwarder_answers.extend_from_slice(&response[..count]);
+                //     }
+                // }
 
                 message.set_question(questions);
                 message.set_answer();
