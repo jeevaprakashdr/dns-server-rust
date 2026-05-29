@@ -29,15 +29,16 @@ impl DnsServer {
                     println!("Received {} bytes from {}", size, source);
 
                     let mut message = Message::new();
-                    message.header.set_id(&buf[..2].to_vec());
-                    message.header.set_qr();
-                    message.header.set_opcode(&buf[2]);
-                    message.header.set_rcode();
-                    let questions = Question::parse(buf.as_slice());
-                    message.set_question(questions.clone());
+                    message
+                        .header
+                        .set_id(&buf[..2].to_vec())
+                        .set_qr()
+                        .set_opcode(&buf[2])
+                        .set_rcode();
 
+                    let questions = Question::parse(buf.as_slice());
                     let forwarder_responses =
-                        forward_questions(&udp_socket, message.clone(), questions);
+                        forward_questions(&udp_socket, message.clone(), questions.clone());
                     let answers = forwarder_responses
                         .iter()
                         .map(|fresponse| {
@@ -46,13 +47,12 @@ impl DnsServer {
                         })
                         .flat_map(|answeres| answeres)
                         .collect::<Vec<_>>();
+
+                    message.set_question(questions);
                     message.set_fowarder_answer(answers);
 
-                    let message = message.to_vec();
-                    println!("Sent message {:?}", &message);
-
                     udp_socket
-                        .send_to(&message, source)
+                        .send_to(&message.to_vec(), source)
                         .inspect(|f| println!("Passed {}", f))
                         .expect("Failed to send response");
                 }
@@ -79,7 +79,7 @@ fn forward_questions(
         forwarder_message.set_question(vec![question]);
 
         udp_socket
-            .send_to(&forwarder_message.to_vec(), "127.0.0.1:5354")
+            .send_to(&forwarder_message.to_vec(), "localhost:5354")
             .unwrap();
         let mut buf = [0u8; 512];
         let (number_of_bytes, _) = udp_socket.recv_from(&mut buf).unwrap();

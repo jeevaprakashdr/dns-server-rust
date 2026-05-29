@@ -1,4 +1,3 @@
-
 #[derive(Clone, Debug)]
 pub(crate) struct Message {
     pub(crate) header: Header,
@@ -26,6 +25,7 @@ impl Message {
         for ele in &self.answers {
             answer_section.extend_from_slice(&ele.to_vec());
         }
+
         [&data[..], &answer_section[..]].concat()
     }
 
@@ -46,14 +46,14 @@ impl Message {
     }
 
     pub(crate) fn parse(buf: &[u8]) -> Message {
-        let inner = buf[..12].to_vec();
+        let header_value = buf[..12].to_vec();
         let header = Header {
-            inner: inner.try_into().expect("failed to extract"),
+            inner: header_value.try_into().expect("failed to extract"),
         };
         let buf = buf[12..].to_vec();
-        let name = parse_name(buf.clone());
+        let domain_name = parse_name(buf.clone());
 
-        let mut offset = name.len();
+        let mut offset = domain_name.len();
 
         let qtype_slice = &buf[offset..=offset + 1];
         let qtype_bytes: [u8; 2] = qtype_slice.try_into().unwrap();
@@ -65,7 +65,7 @@ impl Message {
         let qclass = QClass::try_from(u16::from_be_bytes(qclass_bytes)).unwrap();
         offset += 2;
 
-        let question = Question::new(name.clone(), qtype.clone(), qclass.clone());
+        let question = Question::new(domain_name.clone(), qtype.clone(), qclass.clone());
         offset += question.to_vec().len();
 
         let ttl_slice = &buf[offset..offset + 4];
@@ -79,12 +79,11 @@ impl Message {
         offset += 2;
 
         let rdata_slice = &buf[offset..];
-        println!("{:?}", rdata_slice);
         let rdata_bytes: [u8; 4] = rdata_slice.try_into().unwrap();
         let rdata = u32::from_be_bytes(rdata_bytes);
 
         let answer = Answer {
-            name,
+            name: domain_name,
             qtype,
             qclass,
             ttl,
@@ -215,7 +214,6 @@ pub(crate) struct Answer {
 }
 
 impl Answer {
-
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
         inner.extend_from_slice(self.name.as_slice());
@@ -295,28 +293,32 @@ pub(crate) struct Header {
 }
 
 impl Header {
-    pub(crate) fn set_id(&mut self, id: &[u8]) {
-        self.inner[..2].copy_from_slice(&id)
+    pub(crate) fn set_id(&mut self, id: &[u8]) -> &mut Header {
+        self.inner[..2].copy_from_slice(&id);
+        self
     }
 
-    pub(crate) fn set_qr(&mut self) {
-        self.inner[2] |= 0x80;
+    pub(crate) fn set_qr(&mut self) -> &mut Header {
+        self.inner[2] |= 0x80; 
+        self
     }
 
     pub(crate) fn reset_qr(&mut self) {
         self.inner[2] = 0x00;
     }
 
-    pub(crate) fn set_rcode(&mut self) {
-        self.inner[3] |= 0x04
+    pub(crate) fn set_rcode(&mut self) -> &mut Header {
+        self.inner[3] |= 0x04;
+        self
     }
 
     pub(crate) fn reset_rcode(&mut self) {
         self.inner[3] = 0x00
     }
 
-    pub(crate) fn set_opcode(&mut self, opcode: &u8) {
+    pub(crate) fn set_opcode(&mut self, opcode: &u8) -> &mut Header {
         self.inner[2] |= *opcode;
+        self
     }
 
     fn set_question(&mut self, count: usize) {
