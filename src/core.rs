@@ -1,4 +1,3 @@
-use std::net::Ipv4Addr;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Message {
@@ -35,15 +34,6 @@ impl Message {
 
         for q in questions {
             self.questions.push(q);
-        }
-    }
-
-    pub(crate) fn set_answer(&mut self) {
-        self.header.set_answer(self.questions.len());
-
-        for q in self.questions.clone() {
-            let answer = Answer::new(q.name, q.qtype, q.qclass);
-            self.answers.push(answer);
         }
     }
 
@@ -225,28 +215,6 @@ pub(crate) struct Answer {
 }
 
 impl Answer {
-    pub(crate) fn new(name: Vec<u8>, qtype: QType, qclass: QClass) -> Self {
-        let ttl = 60;
-        let rdata = match qtype {
-            QType::A => {
-                let localhost = Ipv4Addr::new(127, 0, 0, 1);
-                localhost.to_bits()
-            }
-        };
-
-        let rdlength = match qtype {
-            QType::A => 4,
-        };
-
-        Self {
-            name,
-            qtype,
-            qclass,
-            ttl,
-            rdata,
-            rdlength,
-        }
-    }
 
     fn to_vec(&self) -> Vec<u8> {
         let mut inner = Vec::<u8>::new();
@@ -362,7 +330,7 @@ impl Header {
 
 #[cfg(test)]
 mod test {
-    use crate::core::{Answer, Message, QType, Question};
+    use crate::core::{Message, QType, Question};
 
     #[test]
     fn parse_qtype_from_bytes() {
@@ -386,7 +354,7 @@ mod test {
     }
 
     #[test]
-    fn parse_bytes_into_Message() {
+    fn parse_bytes_into_message() {
         let buf = vec![
             197, 90, 128, 0, 0, 1, 0, 1, 0, 0, 0, 0, 3, 97, 98, 99, 12, 99, 111, 100, 101, 99, 114,
             97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1, 3, 97, 98, 99, 12, 99, 111,
