@@ -1,38 +1,30 @@
 use std::net::Ipv4Addr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Message {
     pub(crate) header: Header,
-    question: Vec<Question>,
-    answer: Vec<Answer>,
+    questions: Vec<Question>,
+    answers: Vec<Answer>,
 }
 
 impl Message {
     pub(crate) fn new() -> Self {
         Self {
             header: Header::default(),
-            question: Vec::new(),
-            answer: Vec::new(),
-        }
-    }
-
-    pub(crate) fn Create(header: Header, question: Question) -> Self {
-        Self {
-            header,
-            question: vec![question],
-            answer: Vec::new(),
+            questions: Vec::new(),
+            answers: Vec::new(),
         }
     }
 
     pub(crate) fn to_vec(&mut self) -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(&self.header.inner);
-        for ele in &self.question {
+        for ele in &self.questions {
             data.extend_from_slice(&ele.to_vec());
         }
 
         let mut answer_section = Vec::new();
-        for ele in &self.answer {
+        for ele in &self.answers {
             answer_section.extend_from_slice(&ele.to_vec());
         }
         [&data[..], &answer_section[..]].concat()
@@ -42,23 +34,104 @@ impl Message {
         self.header.set_question(questions.len());
 
         for q in questions {
-            self.question.push(q);
+            self.questions.push(q);
         }
     }
 
     pub(crate) fn set_answer(&mut self) {
-        self.header.set_answer(self.question.len());
+        self.header.set_answer(self.questions.len());
 
-        for q in self.question.clone() {
+        for q in self.questions.clone() {
             let answer = Answer::new(q.name, q.qtype, q.qclass);
-            self.answer.push(answer);
+            self.answers.push(answer);
         }
     }
 
-    pub(crate) fn set_answer_from_resolver(&mut self) {
-        self.header.set_answer(self.question.len());
+    pub(crate) fn set_fowarder_answer(&mut self, answers: Vec<Answer>) {
+        self.header.set_answer(answers.len());
+
+        for a in answers {
+            self.answers.push(a);
+        }
     }
 
+    pub(crate) fn parse(buf: &[u8]) -> Message {
+        let inner = buf[..12].to_vec();
+        let header = Header {
+            inner: inner.try_into().expect("failed to extract"),
+        };
+        let buf = buf[12..].to_vec();
+        let name = parse_name(buf.clone());
+
+        let mut offset = name.len();
+
+        let qtype_slice = &buf[offset..=offset + 1];
+        let qtype_bytes: [u8; 2] = qtype_slice.try_into().unwrap();
+        let qtype = QType::try_from(u16::from_be_bytes(qtype_bytes)).unwrap();
+        offset += 2;
+
+        let qclass_slice = &buf[offset..=offset + 1];
+        let qclass_bytes: [u8; 2] = qclass_slice.try_into().unwrap();
+        let qclass = QClass::try_from(u16::from_be_bytes(qclass_bytes)).unwrap();
+        offset += 2;
+
+        let question = Question::new(name.clone(), qtype.clone(), qclass.clone());
+        offset += question.to_vec().len();
+
+        let ttl_slice = &buf[offset..offset + 4];
+        let ttl_bytes: [u8; 4] = ttl_slice.try_into().unwrap();
+        let ttl = u32::from_be_bytes(ttl_bytes);
+        offset += 4;
+
+        let rdlength_slice = &buf[offset..offset + 2];
+        let rdlength_bytes: [u8; 2] = rdlength_slice.try_into().unwrap();
+        let rdlength = u16::from_be_bytes(rdlength_bytes);
+        offset += 2;
+
+        let rdata_slice = &buf[offset..];
+        println!("{:?}", rdata_slice);
+        let rdata_bytes: [u8; 4] = rdata_slice.try_into().unwrap();
+        let rdata = u32::from_be_bytes(rdata_bytes);
+
+        let answer = Answer {
+            name,
+            qtype,
+            qclass,
+            ttl,
+            rdlength,
+            rdata,
+        };
+
+        Message {
+            header,
+            questions: vec![question],
+            answers: vec![answer],
+        }
+    }
+
+    pub(crate) fn get_answers(&self) -> Vec<Answer> {
+        self.answers.clone()
+    }
+}
+
+fn parse_name(buf: Vec<u8>) -> Vec<u8> {
+    let mut current_index = 0;
+    let mut name = Vec::new();
+    loop {
+        let current = buf.get(current_index);
+
+        if current.is_none() {
+            return Vec::new();
+        }
+
+        name.push(*current.unwrap());
+
+        if current == Some(&0x00) {
+            return std::mem::take(&mut name);
+        }
+
+        current_index += 1;
+    }
 }
 
 #[derive(Default, Clone, Debug)]
@@ -141,14 +214,14 @@ fn parse_questions_count(buf: &[u8]) -> u16 {
     u16::from_be_bytes(*qc_byte)
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct Answer {
     name: Vec<u8>,
     qtype: QType,
     qclass: QClass,
     ttl: u32,
-    rdata: u32,
     rdlength: u16,
+    rdata: u32,
 }
 
 impl Answer {
@@ -218,7 +291,7 @@ impl Default for QClass {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum QType {
     A,
 }
@@ -248,7 +321,7 @@ impl Default for QType {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct Header {
     inner: [u8; 12],
 }
@@ -262,8 +335,16 @@ impl Header {
         self.inner[2] |= 0x80;
     }
 
+    pub(crate) fn reset_qr(&mut self) {
+        self.inner[2] = 0x00;
+    }
+
     pub(crate) fn set_rcode(&mut self) {
         self.inner[3] |= 0x04
+    }
+
+    pub(crate) fn reset_rcode(&mut self) {
+        self.inner[3] = 0x00
     }
 
     pub(crate) fn set_opcode(&mut self, opcode: &u8) {
@@ -281,7 +362,14 @@ impl Header {
 
 #[cfg(test)]
 mod test {
-    use crate::core::Question;
+    use crate::core::{Answer, Message, QType, Question};
+
+    #[test]
+    fn parse_qtype_from_bytes() {
+        let bytes: [u8; 2] = [0, 1];
+        let qtype = QType::try_from(u16::from_be_bytes(bytes)).unwrap();
+        assert_eq!(qtype, QType::A);
+    }
 
     #[test]
     fn parse_questions_from_request_payload() {
@@ -295,5 +383,19 @@ mod test {
         let questions = Question::parse(request_payload.as_slice());
 
         assert_eq!(questions.len(), 3);
+    }
+
+    #[test]
+    fn parse_bytes_into_Message() {
+        let buf = vec![
+            197, 90, 128, 0, 0, 1, 0, 1, 0, 0, 0, 0, 3, 97, 98, 99, 12, 99, 111, 100, 101, 99, 114,
+            97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1, 3, 97, 98, 99, 12, 99, 111,
+            100, 101, 99, 114, 97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1, 0, 0, 14,
+            16, 0, 4, 76, 76, 21, 21,
+        ];
+
+        let mut message = Message::parse(&buf);
+
+        assert_eq!(message.to_vec(), buf)
     }
 }
